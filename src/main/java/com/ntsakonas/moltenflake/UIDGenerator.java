@@ -1,3 +1,21 @@
+/*
+    MoltenFlake - Practicing on the design of a distributed unique identifier generator.
+
+    Copyright (C) 2021, Nick Tsakonas
+
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 package com.ntsakonas.moltenflake;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -6,19 +24,33 @@ import org.springframework.stereotype.Component;
 import java.time.Clock;
 import java.util.concurrent.atomic.AtomicInteger;
 
+
 /*
+  Design requirements:
+ - return unique numerical 64bit IDs
+ - IDs are ordered by date
+ - ability to generate over 1 million IDs per second
+
+ The generator is inspired by the description of SnowFlake by Twitter.
+
  The generator is using a combination of the timestamp (milliseconds)
  the machine ID and an increasing sequence to generate a unique IDs.
 
  It has a planned capacity for 2048 hosts each generating up to 2048 ids
- per millisecond (20148000 ids per second).
+ per millisecond (2048000 ids per second) each. The capacity of the
+ distributed system is 2048 * 2048000 = 4,121,440,000 UIDs per second.
 
  It uses 41 bits for the timestamp, 11 bits for the machine and 11 bits for the sequence.
 
  The timestamp advances 31536000 seconds per year.
+ using 40 bits for the timestamp the system will serve us for up to 17 years
  using 40 bits for the timestamp the system will serve us for up to 34 years
  using 41 bits for the timestamp the system will serve us for up to 69 years
- */
+
+ if we do not plan to be around for that long we can make a trade-off on the timestamp bits
+ and increase the number of hosts or the max sequence number to increase the system capacity.
+*/
+
 @Component
 public class UIDGenerator {
 
@@ -32,15 +64,15 @@ public class UIDGenerator {
     private final int BITS_IN_MACHINE_ID = 11;
     private final int BITS_IN_SEQUENCE = 11;
 
-    // top bit (sign) is set to 0 to avoid returning negative numbers
+    // MSB (sign) is set to 0 to avoid returning negative numbers
     private final int TIMESTAMP_BIT_SHIFT = 64 - BITS_IN_TIMESTAMP - 1;
     private final int MACHINE_BIT_SHIFT = TIMESTAMP_BIT_SHIFT - BITS_IN_MACHINE_ID;
 
     private final int MAX_SEQUENCE = (1 << BITS_IN_SEQUENCE) - 1;
     private final int MACHINE_ID;
 
-    private Clock clock;
-    private AtomicInteger sequence = new AtomicInteger(0);
+    private final Clock clock;
+    private final AtomicInteger sequence = new AtomicInteger(0);
 
     public UIDGenerator(Clock clock, @Value("${uid.config.machineid}") int machineId) {
 
@@ -75,11 +107,9 @@ public class UIDGenerator {
             throw new RuntimeException("The system is overwhelmed and ran out of IDs for this millisecond.");
         }
         // create the UID
-        long l = millis - EPOCH;
-        long uid = l << TIMESTAMP_BIT_SHIFT;
+        long uid = (millis - EPOCH) << TIMESTAMP_BIT_SHIFT;
         uid = uid | (MACHINE_ID << MACHINE_BIT_SHIFT);
         uid = uid | nextSequence;
-
         return uid;
     }
 }
