@@ -2,28 +2,68 @@ package com.ntsakonas.moltenflake;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import org.springframework.boot.test.context.SpringBootTest;
 
 import java.time.Clock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@SpringBootTest
 class MoltenFlakeApplicationTests {
 
-    @Test
-    void contextLoads() {
+    private final int MACHINE_ID = 1;
+
+    private long getAValidTimeStamp() {
+        // a regular date: January 28, 2021 14:47:38
+        return 1611845258000L;
     }
 
+    @Test
+    void verifyThatSystemOnlyOperatesAfterTheEPOCH() {
+        Clock clock = Mockito.mock(Clock.class);
+
+        // this is the minimum timestamp then system accepts
+        long timestamp = 1609459200000L;
+        Mockito.when(clock.millis()).thenReturn(timestamp);
+        new UIDGenerator(clock, MACHINE_ID);
+
+        // go before the EPOCH
+        Mockito.when(clock.millis()).thenReturn(timestamp - 1);
+        assertThatThrownBy(() -> new UIDGenerator(clock, MACHINE_ID))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("The system clock must be later than January 1, 2021 0:00:00");
+
+
+        assertThatThrownBy(() -> new UIDGenerator(null, MACHINE_ID))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("No system clock was provided");
+
+    }
+
+    @Test
+    void verifyThatSystemAcceptsTheCorrectMachineIdRange() {
+        Clock clock = Mockito.mock(Clock.class);
+        Mockito.when(clock.millis()).thenReturn(getAValidTimeStamp());
+
+        int maxMachineId = (1 << 11) - 1;
+        new UIDGenerator(clock, 0);
+        new UIDGenerator(clock, maxMachineId);
+
+        assertThatThrownBy(() -> new UIDGenerator(clock, maxMachineId + 1))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("The machine Id is out of range");
+
+        assertThatThrownBy(() -> new UIDGenerator(clock, -1))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("The machine Id is out of range");
+
+    }
 
     @Test
     void testUIDGeneration() {
         Clock clock = Mockito.mock(Clock.class);
-        // a regular date: January 28, 2021 14:47:38
-        long timestamp = 1611845258000L;
+        long timestamp = getAValidTimeStamp();
         Mockito.when(clock.millis()).thenReturn(timestamp);
-        UIDGenerator generator = new UIDGenerator(clock);
+        UIDGenerator generator = new UIDGenerator(clock, MACHINE_ID);
         // millis - EPOCH = 1611845258000−1609459200000 = 2386058000
         // machineId = 1
         // sequence starts with 0
@@ -54,10 +94,9 @@ class MoltenFlakeApplicationTests {
         // the clock is increasing monotonically. if for any reason
         // the uid generator receives an earlier timestamp it should throw an error
         Clock clock = Mockito.mock(Clock.class);
-        // a regular date: January 28, 2021 14:47:38
-        long timestamp = 1611845258000L;
+        long timestamp = getAValidTimeStamp();
         Mockito.when(clock.millis()).thenReturn(timestamp);
-        UIDGenerator generator = new UIDGenerator(clock);
+        UIDGenerator generator = new UIDGenerator(clock, MACHINE_ID);
         assertThat(generator.generateUid()).isEqualTo(10007852613634048L);
 
         // turn clock back
@@ -73,9 +112,8 @@ class MoltenFlakeApplicationTests {
         // For any given millisecond we can generate 2^11 monotonically increasing Ids,
         // After that the uid generator should throw an error (because the sequence is exhausted for this host)
         Clock clock = Mockito.mock(Clock.class);
-        // a regular date: January 28, 2021 14:47:38
-        Mockito.when(clock.millis()).thenReturn(1611845258000L);
-        UIDGenerator generator = new UIDGenerator(clock);
+        Mockito.when(clock.millis()).thenReturn(getAValidTimeStamp());
+        UIDGenerator generator = new UIDGenerator(clock, MACHINE_ID);
 
         int numOfIds = 1 << 11;
 
@@ -98,9 +136,9 @@ class MoltenFlakeApplicationTests {
         // After that the uid generator should throw an error (because the sequence is exhausted for this host)
         Clock clock = Mockito.mock(Clock.class);
         // a regular date: January 28, 2021 14:47:38
-        long timestamp = 1611845258000L;
+        long timestamp = getAValidTimeStamp();
         Mockito.when(clock.millis()).thenReturn(timestamp);
-        UIDGenerator generator = new UIDGenerator(clock);
+        UIDGenerator generator = new UIDGenerator(clock, MACHINE_ID);
 
         int numOfIds = 1 << 11;
         // generate the first ID

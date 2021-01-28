@@ -1,5 +1,6 @@
 package com.ntsakonas.moltenflake;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
@@ -9,14 +10,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  The generator is using a combination of the timestamp (milliseconds)
  the machine ID and an increasing sequence to generate a unique IDs.
 
- It has planned capacity for 2048 hosts each generating up to 2048 ids
+ It has a planned capacity for 2048 hosts each generating up to 2048 ids
  per millisecond (20148000 ids per second).
 
- It uses 41bits for the timestamp, 11 bits for the machine and 11 bits for the sequence.
+ It uses 41 bits for the timestamp, 11 bits for the machine and 11 bits for the sequence.
 
  The timestamp advances 31536000 seconds per year.
- using 40 bits for the timestamp will take us up to 34 years
- using 41 bits for the timestamp will take us up to 69 years
+ using 40 bits for the timestamp the system will serve us for up to 34 years
+ using 41 bits for the timestamp the system will serve us for up to 69 years
  */
 @Component
 public class UIDGenerator {
@@ -36,13 +37,28 @@ public class UIDGenerator {
     private final int MACHINE_BIT_SHIFT = TIMESTAMP_BIT_SHIFT - BITS_IN_MACHINE_ID;
 
     private final int MAX_SEQUENCE = (1 << BITS_IN_SEQUENCE) - 1;
-    private final int MACHINE_ID = 1;
+    private final int MACHINE_ID;
 
     private Clock clock;
     private AtomicInteger sequence = new AtomicInteger(0);
 
-    public UIDGenerator(Clock clock) {
+    public UIDGenerator(Clock clock, @Value("${uid.config.machineid}") int machineId) {
+
+        int maxMachineId = (1 << BITS_IN_MACHINE_ID) - 1;
+        if (machineId < 0 || machineId > maxMachineId) {
+            throw new RuntimeException("The machine Id is out of range, it must be in the range 0.." + maxMachineId);
+        }
+
+        if (clock == null) {
+            throw new RuntimeException("No system clock was provided.");
+        }
+
+        if (clock.millis() < EPOCH) {
+            throw new RuntimeException("The system clock is incorrect. The system clock must be later than January 1, 2021 0:00:00.");
+        }
+
         this.clock = clock;
+        this.MACHINE_ID = machineId;
     }
 
     public long generateUid() {
@@ -66,6 +82,4 @@ public class UIDGenerator {
 
         return uid;
     }
-
-
 }
