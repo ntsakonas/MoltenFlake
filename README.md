@@ -40,4 +40,6 @@ This implementation is satisfying the following requirements:
  ## Notes
  The implementation was developed in a "clean room" style but due to its simplicity its similarities with Twitter's Snowflake are unavoidable.
  
- 
+ ## Licence/Disclaimer
+ This implementation is released under GNU General Public License v3.0.
+ Please keep in mind that this implementation is not production tested and comes with absolutely no guarantee that it will work for you.
