@@ -3,7 +3,7 @@
 A distributed unique ID generator
 
 ## Description
-This is a distributed UID generator implemented in the context of practicing system design.
+This is a distributed UID generator implemented in Java (using Spring) in the context of practicing system design.
 This is one of the systems that is often considered basic in system design and the most common and obvious 
 approach is what is known as Twitter's Snowflake.
 
